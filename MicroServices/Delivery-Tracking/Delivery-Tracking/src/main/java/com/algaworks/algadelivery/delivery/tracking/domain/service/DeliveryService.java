@@ -20,7 +20,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DeliveryService {
 
-    private DeliveryRepository deliveryRepository;
+    private final DeliveryRepository deliveryRepository;
+    private final DeliveryTimeEstimationService deliveryTimeEstimationService;
+    private final CourierPayoutCalculationService courierPayoutCalculationService;
 
     @Transactional
     public Delivery draft(DeliveryInput deliveryInput) {
@@ -69,14 +71,18 @@ public class DeliveryService {
                 .street(recipientInput.getStreet())
                 .build();
 
-        Duration expectedDeliveryTime = Duration.ofHours(3);
-        BigDecimal payout = new BigDecimal("'10");
+
+        var estimate = deliveryTimeEstimationService.estimate(senderContactPoint, recipientContactPoint);
+                ;
+        var payout = courierPayoutCalculationService.calculatePayout(estimate.getEstimatedDistanceInKm());
+
+        BigDecimal distanceFee = calculateFee(estimate.getEstimatedDistanceInKm()); // Assuming a fixed rate of 10 per km
 
         var preparationDetails = Delivery.PreparationDetails.builder()
                 .recipient(recipientContactPoint)
                 .sender(senderContactPoint)
                 .courierPayout(payout)
-                .expectedDeliveryTime(expectedDeliveryTime)
+                .expectedDeliveryTime(estimate.getEstimatedTime())
                 .distanceFee(new BigDecimal("10"))
                 .build();
 
@@ -89,6 +95,13 @@ public class DeliveryService {
         }
 
 
+    }
+
+    private BigDecimal calculateFee(Double estimatedDistanceInKm)
+    {
+        return new BigDecimal("3")
+                .multiply(new BigDecimal(estimatedDistanceInKm))
+                .setScale(2, BigDecimal.ROUND_HALF_EVEN);
     }
 
 
